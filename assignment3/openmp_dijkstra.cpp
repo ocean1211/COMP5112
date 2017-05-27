@@ -148,42 +148,50 @@ void dijkstra(int N, int p, int *mat, int *all_dist, int *all_pred) {
 
     all_visit[0] = true;
 
+    int global_min;
+    int u;
+
+    #pragma omp parallel \
+        default(none) shared(global_min, u, N, all_dist, all_pred, all_visit, mat) \
+        num_threads (p)
     for (int round = 1; round < N; ++round)
     {
-        // Find the local min
-        int global_min = INT_MAX;
-        int u = -1;
-
-        #pragma omp parallel num_threads (p)
+        // Init the shared variables
+        #pragma omp single
         {
+            global_min = INT_MAX;
+            u = -1;
+        }
 
-            int local_min = INT_MAX;
-            int local_u = -1;
+        // Find the local min
+        int local_min = INT_MAX;
+        int local_u = -1;
 
-            #pragma omp parallel for num_threads (p)
-            for (int v = 0; v < N; ++v)
-            {
-                if (!all_visit[v]) {
-                    if (all_dist[v] < local_min) {
-                        local_min = all_dist[v];
-                        local_u = v;
-                    }
-                }
-            }
-
-            #pragma omp critical
-            {
-                if (local_min < global_min)
-                {
-                    global_min = local_min;
-                    u = local_u;
+        #pragma omp for
+        for (int v = 0; v < N; ++v)
+        {
+            if (!all_visit[v]) {
+                if (all_dist[v] < local_min) {
+                    local_min = all_dist[v];
+                    local_u = v;
                 }
             }
         }
 
+        #pragma omp critical
+        {
+            if (local_min < global_min)
+            {
+                global_min = local_min;
+                u = local_u;
+            }
+        }
+
+        #pragma omp barrier
+
         all_visit[u] = true;
 
-        #pragma omp parallel for num_threads (p)
+        #pragma omp for
         for (int v = 0; v < N; ++v) {
             if (!all_visit[v]) {
                 int new_dist = global_min + mat[utils::convert_dimension_2D_1D (u, v)];
